@@ -706,24 +706,6 @@ Contribuições são bem-vindas. Antes de abrir um pull request:
 
 Este projeto não é afiliado oficialmente à KADOKAWA. Os arquivos lidos da instalação do RPG Maker MZ (`corescript/`, `newdata/`, `samplemaps/`, `generator/`, `dlc/`, `help-en/`) pertencem ao usuário que possui licença válida do produto.
 
-### Bibliotecas de terceiros
-
-- `@modelcontextprotocol/sdk` (MIT)
-- `zod` (MIT)
-- `ws` (MIT)
-- `jimp` (MIT)
-- `lz-string` (WTFPL)
-- `acorn` (MIT)
-- `papaparse` (MIT)
-- `chokidar` (MIT)
-- `@comuns-rpgmaker/plugin-metadata` (referência para spec de metadata de plugins)
-
-### Inspirações
-
-- `devmagary/MCP-Maker` e `k4zuki0539/rpgmaker-mz-mcp` (MCPs anteriores que serviram de baseline arquitetural)
-- VisuStella MZ (convenção dominante do ecossistema de plugins)
-- `comuns-rpgmaker/plugin-metadata` (spec canônica de metadados de plugin)
-
 ---
 
 ## Licença
