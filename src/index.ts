@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * RPG Maker MZ - MCP
+ * RPG Maker MZ - MCP Ultimate
  * Servidor Model Context Protocol que dá controle total sobre projetos do
  * RPG Maker MZ a agentes de IA.
  *
  * Autor: Newton Alves
  * Versão: 1.0.0
- * Produto: RPG Maker MZ - MCP
+ * Produto: RPG Maker MZ - MCP Ultimate
  */
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -20,7 +20,7 @@ import { getBridge } from './runtime/bridge.js';
 
 const SERVER_NAME = 'rpg-maker-mz-mcp';
 const SERVER_VERSION = '1.0.0';
-const PRODUCT_NAME = 'RPG Maker MZ - MCP';
+const PRODUCT_NAME = 'RPG Maker MZ - MCP Ultimate';
 const AUTHOR = 'Newton Alves';
 
 async function main(): Promise<void> {

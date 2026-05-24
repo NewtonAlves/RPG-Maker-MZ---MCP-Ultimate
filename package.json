@@ -1,7 +1,7 @@
 {
   "name": "rpg-maker-mz-mcp",
   "version": "1.0.0",
-  "description": "RPG Maker MZ - MCP: servidor Model Context Protocol que dá controle total de projetos RPG Maker MZ a agentes de IA",
+  "description": "RPG Maker MZ - MCP Ultimate: servidor Model Context Protocol que dá controle total de projetos RPG Maker MZ a agentes de IA",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

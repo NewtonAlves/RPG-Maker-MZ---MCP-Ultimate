@@ -1,9 +1,9 @@
 /*:
  * @target MZ
- * @plugindesc RPG Maker MZ - MCP Companion — canal WebSocket para o servidor MCP controlar o jogo em runtime
+ * @plugindesc RPG Maker MZ - MCP Ultimate Companion — canal WebSocket para o servidor MCP controlar o jogo em runtime
  * @author Newton Alves
  * @help
- * Plugin companion do RPG Maker MZ - MCP. Quando o jogo inicia, este plugin
+ * Plugin companion do RPG Maker MZ - MCP Ultimate. Quando o jogo inicia, este plugin
  * tenta conectar via WebSocket ao servidor MCP rodando localmente. Permite
  * que o agente de IA consulte ($gameSwitches, $gameVariables, party, etc.)
  * e atue (set switch, transfer player, etc.) ao vivo enquanto você joga.
