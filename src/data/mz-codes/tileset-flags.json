@@ -1,0 +1,72 @@
+{
+  "version": "1.0.0",
+  "source": "Validado contra corescript/v1.6.0/rmmz_objects.js (Game_Map.prototype.checkPassageByFlag, terrainTag)",
+  "description": "Cada tile em Tilesets.json[].flags[] é um inteiro de 16 bits com encoding posicional",
+  "bits": {
+    "passage": {
+      "bits": "0-3",
+      "mask": 15,
+      "description": "Cada bit representa uma direção bloqueada (bit ligado = NÃO passa)",
+      "directions": {
+        "0": "down",
+        "1": "left",
+        "2": "right",
+        "3": "up"
+      },
+      "bitValues": {
+        "down": 1,
+        "left": 2,
+        "right": 4,
+        "up": 8
+      }
+    },
+    "ladder": {
+      "bit": 5,
+      "mask": 32,
+      "description": "Tile é escada (movimento vertical)"
+    },
+    "bush": {
+      "bit": 6,
+      "mask": 64,
+      "description": "Tile é arbusto (personagem fica parcialmente coberto)"
+    },
+    "counter": {
+      "bit": 7,
+      "mask": 128,
+      "description": "Tile permite interação através (balcão de loja)"
+    },
+    "damage_floor": {
+      "bit": 8,
+      "mask": 256,
+      "description": "Tile causa dano ao andar"
+    },
+    "terrain_tag": {
+      "bits": "12-14",
+      "mask": 28672,
+      "shift": 12,
+      "range": "0-7",
+      "description": "Terrain tag (0-7) usado por scripts pra identificar tipo de terreno"
+    }
+  },
+  "formulas": {
+    "passage_blocked_down": "(flag & 1) !== 0",
+    "passage_blocked_left": "(flag & 2) !== 0",
+    "passage_blocked_right": "(flag & 4) !== 0",
+    "passage_blocked_up": "(flag & 8) !== 0",
+    "is_ladder": "(flag & 32) !== 0",
+    "is_bush": "(flag & 64) !== 0",
+    "is_counter": "(flag & 128) !== 0",
+    "is_damage_floor": "(flag & 256) !== 0",
+    "terrain_tag": "(flag >> 12) & 7"
+  },
+  "examples": [
+    { "flag": 0, "decoded": { "passage": {"down": true, "left": true, "right": true, "up": true}, "ladder": false, "bush": false, "counter": false, "damage_floor": false, "terrain_tag": 0 }, "description": "Tile totalmente livre" },
+    { "flag": 15, "decoded": { "passage": {"down": false, "left": false, "right": false, "up": false}, "ladder": false, "bush": false, "counter": false, "damage_floor": false, "terrain_tag": 0 }, "description": "Tile sólido (todas direções bloqueadas)" },
+    { "flag": 32, "decoded": { "passage": {"down": true, "left": true, "right": true, "up": true}, "ladder": true, "bush": false, "counter": false, "damage_floor": false, "terrain_tag": 0 }, "description": "Escada" }
+  ],
+  "notes": [
+    "Region IDs (0-255) NÃO ficam nos flags — ficam armazenados na 6ª camada (layer 5) do data array do mapa, NÃO do tileset.",
+    "Bit 4 não é usado na implementação atual do MZ.",
+    "Bits 9-11 reservados (não usados)."
+  ]
+}
