@@ -1,0 +1,41 @@
+{
+  "version": "1.0.0",
+  "source": "Validado contra corescript/v1.6.0/rmmz_objects.js (Game_BattlerBase.TRAIT_*)",
+  "traits": [
+    { "code": 11, "name": "element_rate", "display": "Element Rate", "dataIdMeaning": "elementId (de System.elements)", "valueMeaning": "multiplier (1.0=normal, 0.5=half, 2.0=double)", "example": { "dataId": 2, "value": 0.5 }, "humanExample": "Toma 50% de dano de fogo" },
+    { "code": 12, "name": "debuff_rate", "display": "Debuff Rate", "dataIdMeaning": "paramId (0-7)", "valueMeaning": "resist multiplier (1.0=normal, 0.5=half chance)", "example": { "dataId": 2, "value": 0.5 } },
+    { "code": 13, "name": "state_rate", "display": "State Rate", "dataIdMeaning": "stateId", "valueMeaning": "multiplier de chance de receber state", "example": { "dataId": 4, "value": 0.5 }, "humanExample": "Poison 50% menos provável" },
+    { "code": 14, "name": "state_resist", "display": "State Resist", "dataIdMeaning": "stateId", "valueMeaning": "ignorado (trait booleano)", "example": { "dataId": 4, "value": 0 }, "humanExample": "Imune a Poison" },
+    { "code": 21, "name": "param_rate", "display": "Parameter Rate", "dataIdMeaning": "paramId 0-7 (MaxHP/MaxMP/ATK/DEF/MAT/MDF/AGI/LUK)", "valueMeaning": "multiplier (1.0=normal, 1.2=+20%)", "example": { "dataId": 2, "value": 1.2 }, "humanExample": "ATK +20%" },
+    { "code": 22, "name": "xparam_rate", "display": "X-Param Rate", "dataIdMeaning": "xparamId 0-9", "valueMeaning": "additive rate (+0.1 = +10%)", "xparamMap": { "0": "hit", "1": "eva", "2": "cri", "3": "cev", "4": "mev", "5": "mrf", "6": "cnt", "7": "hrg", "8": "mrg", "9": "trg" }, "example": { "dataId": 2, "value": 0.15 }, "humanExample": "Critical +15%" },
+    { "code": 23, "name": "sparam_rate", "display": "S-Param Rate", "dataIdMeaning": "sparamId 0-9", "valueMeaning": "multiplier (1.0=normal)", "sparamMap": { "0": "tgr", "1": "grd", "2": "rec", "3": "pha", "4": "mcr", "5": "tcr", "6": "pdr", "7": "mdr", "8": "fdr", "9": "exr" }, "example": { "dataId": 9, "value": 1.5 }, "humanExample": "EXP rate +50%" },
+    { "code": 31, "name": "attack_element", "display": "Attack Element", "dataIdMeaning": "elementId", "valueMeaning": "ignorado (booleano)", "example": { "dataId": 2, "value": 0 } },
+    { "code": 32, "name": "attack_state", "display": "Attack State", "dataIdMeaning": "stateId", "valueMeaning": "chance 0-1", "example": { "dataId": 4, "value": 0.3 }, "humanExample": "30% chance de aplicar Poison ao atacar" },
+    { "code": 33, "name": "attack_speed", "display": "Attack Speed", "dataIdMeaning": "ignorado", "valueMeaning": "speed modifier (positivo=mais rápido)", "example": { "dataId": 0, "value": 5 } },
+    { "code": 34, "name": "attack_times", "display": "Attack Times+", "dataIdMeaning": "ignorado", "valueMeaning": "ataques adicionais (0.5=50% chance de extra)", "example": { "dataId": 0, "value": 1 }, "humanExample": "Ataca 2x sempre" },
+    { "code": 35, "name": "attack_skill", "display": "Attack Skill", "dataIdMeaning": "skillId que substitui ataque normal", "valueMeaning": "ignorado", "example": { "dataId": 7, "value": 0 } },
+    { "code": 41, "name": "stype_add", "display": "Add Skill Type", "dataIdMeaning": "stypeId", "valueMeaning": "ignorado", "example": { "dataId": 1, "value": 1 } },
+    { "code": 42, "name": "stype_seal", "display": "Seal Skill Type", "dataIdMeaning": "stypeId", "valueMeaning": "ignorado", "example": { "dataId": 1, "value": 0 } },
+    { "code": 43, "name": "skill_add", "display": "Add Skill", "dataIdMeaning": "skillId", "valueMeaning": "ignorado", "example": { "dataId": 5, "value": 1 } },
+    { "code": 44, "name": "skill_seal", "display": "Seal Skill", "dataIdMeaning": "skillId", "valueMeaning": "ignorado", "example": { "dataId": 5, "value": 0 } },
+    { "code": 51, "name": "equip_wtype", "display": "Equip Weapon Type", "dataIdMeaning": "weaponTypeId", "valueMeaning": "ignorado", "example": { "dataId": 1, "value": 1 } },
+    { "code": 52, "name": "equip_atype", "display": "Equip Armor Type", "dataIdMeaning": "armorTypeId", "valueMeaning": "ignorado", "example": { "dataId": 1, "value": 1 } },
+    { "code": 53, "name": "equip_lock", "display": "Equipment Lock", "dataIdMeaning": "equipTypeId", "valueMeaning": "ignorado", "example": { "dataId": 2, "value": 0 } },
+    { "code": 54, "name": "equip_seal", "display": "Equipment Seal", "dataIdMeaning": "equipTypeId", "valueMeaning": "ignorado", "example": { "dataId": 3, "value": 0 } },
+    { "code": 55, "name": "slot_type", "display": "Slot Type (Dual Wield)", "dataIdMeaning": "0=Normal, 1=Dual Wield", "valueMeaning": "ignorado", "example": { "dataId": 1, "value": 0 } },
+    { "code": 61, "name": "action_plus", "display": "Action+ (Extra Turn)", "dataIdMeaning": "ignorado", "valueMeaning": "chance 0-1", "example": { "dataId": 0, "value": 0.2 }, "humanExample": "20% chance de turno extra" },
+    { "code": 62, "name": "special_flag", "display": "Special Flag", "dataIdMeaning": "0=Auto Battle, 1=Guard, 2=Substitute, 3=Preserve TP", "valueMeaning": "ignorado", "example": { "dataId": 1, "value": 0 } },
+    { "code": 63, "name": "collapse_type", "display": "Collapse Effect", "dataIdMeaning": "0=Normal, 1=Boss, 2=Instant, 3=Not Disappear", "valueMeaning": "ignorado", "example": { "dataId": 1, "value": 0 } },
+    { "code": 64, "name": "party_ability", "display": "Party Ability", "dataIdMeaning": "0=Encounter Half, 1=Encounter None, 2=Cancel Surprise, 3=Raise Preemptive, 4=Gold Double, 5=Drop Item Double", "valueMeaning": "ignorado", "example": { "dataId": 0, "value": 0 } }
+  ],
+  "paramMap": {
+    "0": "mhp",
+    "1": "mmp",
+    "2": "atk",
+    "3": "def",
+    "4": "mat",
+    "5": "mdf",
+    "6": "agi",
+    "7": "luk"
+  }
+}

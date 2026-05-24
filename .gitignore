@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+.mz-mcp/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test
+coverage/
+.nyc_output/
+
+# Local config / secrets
+.env
+.env.local
+mz-mcp.config.local.json
+
+# Companion artifacts that get rebuilt
+companion-src/dist/
+
+# Temp files
+*.tmp
+*.bak

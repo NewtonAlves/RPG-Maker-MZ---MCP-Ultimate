@@ -1,0 +1,33 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-05-23",
+  "source": "VisuStella docs, RPG Maker forums, community troubleshooting",
+  "issues": [
+    { "id": "visumz_core_first", "plugin": "VisuMZ_0_CoreEngine", "issue": "must_load_first", "target": "ALL", "severity": "error", "description": "VisuMZ_0_CoreEngine DEVE ser o primeiro plugin. Todos os outros VisuMZ dependem dele.", "fix": "Mover VisuMZ_0_CoreEngine pra primeira posição em plugins.js" },
+    { "id": "visumz_battle_requires_core", "plugin": "VisuMZ_1_BattleCore", "issue": "must_load_after", "target": "VisuMZ_0_CoreEngine", "severity": "error", "description": "Battle Core requer Core Engine carregado.", "fix": "VisuMZ_0_CoreEngine ANTES de VisuMZ_1_BattleCore" },
+    { "id": "visumz_skills_states_core", "plugin": "VisuMZ_2_SkillsStatesCore", "issue": "must_load_after", "target": "VisuMZ_1_BattleCore", "severity": "error", "description": "Skills & States Core estende Battle Core.", "fix": "Order: CoreEngine → BattleCore → SkillsStatesCore" },
+    { "id": "visumz_items_equips_core", "plugin": "VisuMZ_2_ItemsEquipsCore", "issue": "must_load_after", "target": "VisuMZ_1_BattleCore", "severity": "error", "description": "Items & Equips Core precisa de BattleCore.", "fix": "BattleCore ANTES" },
+    { "id": "visumz_message_core", "plugin": "VisuMZ_1_MessageCore", "issue": "must_load_after", "target": "VisuMZ_0_CoreEngine", "severity": "error", "description": "Message Core requer CoreEngine.", "fix": "CoreEngine → MessageCore" },
+    { "id": "yep_ports_deprecated", "plugin": "YEP_*", "issue": "mv_only_no_mz_port", "target": "N/A", "severity": "error", "description": "Yanfly.moe proibiu ports de YEP (MV) pra MZ. Ports ilegais quebram compat com VisuMZ.", "fix": "Use plugins VisuMZ equivalentes ao invés de YEP ports" },
+    { "id": "visumz_menu_order", "plugin": "VisuMZ_1_MainMenuCore", "issue": "must_load_after", "target": "VisuMZ_0_CoreEngine", "severity": "warning", "description": "Main Menu Core customiza menu.", "fix": "CoreEngine → MainMenuCore" },
+    { "id": "visumz_status_menu", "plugin": "VisuMZ_1_StatusMenuCore", "issue": "must_load_after", "target": "VisuMZ_1_MainMenuCore", "severity": "warning", "description": "Status Menu estende MainMenuCore.", "fix": "MainMenuCore → StatusMenuCore" },
+    { "id": "visumz_save_core", "plugin": "VisuMZ_1_SaveCore", "issue": "must_load_after", "target": "VisuMZ_0_CoreEngine", "severity": "error", "description": "Save Core customiza save/load.", "fix": "CoreEngine → SaveCore" },
+    { "id": "visumz_options_core", "plugin": "VisuMZ_1_OptionsCore", "issue": "must_load_after", "target": "VisuMZ_1_MainMenuCore", "severity": "warning", "description": "Options Core customiza menu de opções.", "fix": "MainMenuCore → OptionsCore" },
+    { "id": "visumz_events_move_core", "plugin": "VisuMZ_1_EventsMoveCore", "issue": "must_load_after", "target": "VisuMZ_0_CoreEngine", "severity": "error", "description": "Events & Movement Core requer CoreEngine.", "fix": "CoreEngine → EventsMoveCore" },
+    { "id": "custom_damage_formula_override", "plugin": "Custom Damage Plugin", "issue": "replaces_same_hook", "target": "VisuMZ_1_BattleCore", "severity": "error", "description": "Custom damage plugins sobrescrevem Game_Action.prototype.makeDamageValue que BattleCore usa.", "fix": "Usar notetags <formula> do BattleCore ao invés de plugin customizado" }
+  ],
+  "recommendedLoadOrder": [
+    "VisuMZ_0_CoreEngine",
+    "VisuMZ_1_BattleCore",
+    "VisuMZ_1_MessageCore",
+    "VisuMZ_1_EventsMoveCore",
+    "VisuMZ_1_MainMenuCore",
+    "VisuMZ_1_StatusMenuCore",
+    "VisuMZ_1_SaveCore",
+    "VisuMZ_1_OptionsCore",
+    "VisuMZ_2_SkillsStatesCore",
+    "VisuMZ_2_ItemsEquipsCore",
+    "VisuMZ_2_ShopCommonEvents",
+    "[Other 3rd-party plugins]"
+  ]
+}
