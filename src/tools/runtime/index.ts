@@ -15,7 +15,6 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 import type { Config } from '../../config.js';
-import { getDashboardInstance } from '../../dashboard/server.js';
 import { getBridge } from '../../runtime/bridge.js';
 import { logger } from '../../utils/logger.js';
 import { mzError } from '../../utils/errors.js';
@@ -341,15 +340,6 @@ export function registerRuntimeTools(server: McpServer, config: Config): void {
         const match = /^data:(image\/\w+);base64,(.+)$/.exec(result.dataUrl);
         const mimeType = match?.[1] ?? 'image/png';
         const data = match?.[2] ?? result.dataUrl;
-        // Cacheia no dashboard pra UI mostrar o último screenshot
-        const dashboard = getDashboardInstance();
-        if (dashboard) {
-          try {
-            dashboard.cacheScreenshot(Buffer.from(data, 'base64'), mimeType);
-          } catch (err) {
-            logger.debug(`Falha ao cachear screenshot no dashboard: ${(err as Error).message}`);
-          }
-        }
         return {
           content: [
             {
@@ -436,13 +426,67 @@ export function registerRuntimeTools(server: McpServer, config: Config): void {
     async (args) => mcpReturn(async () => bridge.call('inspectPath', { path: args.path })),
   );
 
+  /* ---------------- runtime_simulate_battle ---------------- */
+  server.registerTool(
+    'runtime_simulate_battle',
+    {
+      description:
+        'Simula uma batalha COMPLETA OFFLINE no companion sem afetar o gameplay real. ' +
+        'Clona party + troop, roda auto-attack por turnos até alguém ganhar/perder. ' +
+        'Usa Game_Action.makeDamageValue do engine REAL — respeita plugins customizados ' +
+        '(VisuStella, Yanfly, sistemas custom). Retorna log detalhado + resultado + stats. ' +
+        'Útil pra testar balanceamento de inimigos novos sem precisar entrar em batalha real.',
+      inputSchema: z.object({
+        troopId: z.number().int().positive().describe('ID da troop a simular'),
+        partyActorIds: z
+          .array(z.number().int().positive())
+          .optional()
+          .describe('IDs dos actors no party (default: party atual do jogador)'),
+        maxTurns: z.number().int().positive().default(30).describe('Limite de turnos'),
+      }).shape,
+    },
+    async (args) =>
+      mcpReturn(async () =>
+        bridge.call('simulateBattle', {
+          troopId: args.troopId,
+          partyActorIds: args.partyActorIds ?? [],
+          maxTurns: args.maxTurns,
+        }),
+      ),
+  );
+
+  /* ---------------- runtime_get_console_log ---------------- */
+  server.registerTool(
+    'runtime_get_console_log',
+    {
+      description:
+        'Lê os erros/warnings capturados do jogo durante o Playtest (console.error, ' +
+        'console.warn, window.onerror, unhandledrejection). Pega crashes de plugin SEM ' +
+        'precisar de screenshot. Filtre por level (error/warn/uncaught/unhandledrejection). ' +
+        'clear:true esvazia o buffer após ler.',
+      inputSchema: z.object({
+        level: z
+          .enum(['all', 'error', 'warn', 'uncaught', 'unhandledrejection'])
+          .default('all')
+          .describe('Filtra por nível'),
+        limit: z.number().int().positive().default(100).describe('Máximo de entradas'),
+        clear: z.boolean().default(false).describe('Esvazia o buffer após ler'),
+      }).shape,
+    },
+    async (args) =>
+      mcpReturn(async () =>
+        bridge.call('getConsoleLog', { level: args.level, limit: args.limit, clear: args.clear }),
+      ),
+  );
+
   /* ---------------- runtime_drain_events ---------------- */
   server.registerTool(
     'runtime_drain_events',
     {
       description:
-        'Lê e limpa o buffer de eventos push do companion. Eventos rastreados: ' +
-        'mapChanged, battleStarted, battleEnded, levelUp, switchChanged, goldChanged. ' +
+        'Lê e limpa o buffer de eventos push do companion. Eventos rastreados (11): ' +
+        'mapChanged, battleStarted, battleEnded, levelUp, switchChanged, variableChanged, ' +
+        'goldChanged, itemChanged, partyMemberAdded, partyMemberRemoved, commonEventStarted. ' +
         'Filtre por nome com filterName.',
       inputSchema: z.object({
         filterName: z.string().optional(),
@@ -462,7 +506,8 @@ export function registerRuntimeTools(server: McpServer, config: Config): void {
       description:
         'Bloqueia até o próximo evento com o nome especificado chegar do companion ' +
         '(ou timeout). Útil pra "espera o jogador entrar no mapa 5" antes de agir. ' +
-        'Eventos: mapChanged, battleStarted, battleEnded, levelUp, switchChanged, goldChanged.',
+        'Eventos (11): mapChanged, battleStarted, battleEnded, levelUp, switchChanged, ' +
+        'variableChanged, goldChanged, itemChanged, partyMemberAdded, partyMemberRemoved, commonEventStarted.',
       inputSchema: z.object({
         eventName: z.string().min(1),
         timeoutMs: z.number().int().positive().default(30000),

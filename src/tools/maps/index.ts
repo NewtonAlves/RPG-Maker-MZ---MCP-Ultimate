@@ -121,7 +121,7 @@ export function registerMapTools(server: McpServer, config: Config): void {
     },
     async (args) =>
       mcpReturn(async () => {
-        let id = args.id ?? (await nextFreeMapId(config));
+        const id = args.id ?? (await nextFreeMapId(config));
 
         // Garante que não está sobrescrevendo
         const filePath = mapPath(config, id);

@@ -329,6 +329,7 @@ export function registerEventTools(server: McpServer, config: Config): void {
   registerBattleTemplate(server, config);
   registerPlaySoundTemplate(server, config);
   registerChangePartyMemberTemplate(server, config);
+  registerShopTemplate(server, config);
 }
 
 /* ========================== templates impl ========================== */
@@ -595,6 +596,102 @@ function registerPlaySoundTemplate(server: McpServer, config: Config): void {
         return { mapId: args.mapId, eventId: args.eventId };
       }),
   );
+
+  /* -------------------------- event_validate_structure ----------------------- */
+  server.registerTool(
+    'event_validate_structure',
+    {
+      description:
+        'Valida a ESTRUTURA das command lists de eventos (mapas + common events + troops). ' +
+        'Detecta listas malformadas que travam o interpretador: sem terminador code 0, ' +
+        'indent negativo, salto de indent (corrupção), blocos não fechados (conditional/loop/' +
+        'choices sem End), e continuações órfãs (401/405/505/655 sem header). Usa apenas ' +
+        'invariantes provadas do MZ — zero falso positivo. Só lê, não modifica.',
+      inputSchema: z.object({
+        severity: z.enum(['all', 'error', 'warning']).default('all').describe('Filtra por severity'),
+        limit: z.number().int().positive().default(200).describe('Máximo de issues retornadas'),
+      }).shape,
+    },
+    async (args) =>
+      mcpReturn(async () => {
+        const { validateEventStructure } = await import('../../core/event-structure.js');
+        const result = await validateEventStructure(config);
+        let items = result.issues;
+        if (args.severity !== 'all') items = items.filter((i) => i.severity === args.severity);
+        return {
+          totalLists: result.totalLists,
+          totalIssues: result.totalIssues,
+          errorCount: result.errorCount,
+          warningCount: result.warningCount,
+          issues: items.slice(0, args.limit),
+          truncated: items.length > args.limit ? items.length - args.limit : 0,
+        };
+      }),
+  );
+
+  /* -------------------------- event_check_references ----------------------- */
+  server.registerTool(
+    'event_check_references',
+    {
+      description:
+        'Valida o que os comandos de evento APONTAM (complementa event_validate_structure). ' +
+        'Detecta: Transfer Player (201) pra mapa inexistente, Call Common Event (117) inexistente, ' +
+        'Control Switch/Variable (121/122) fora do range, Battle (301) com troop inexistente, e ' +
+        'escape codes \\V[n]/\\N[n] no texto apontando pra variável/actor inválido. ' +
+        '100% determinístico, só lê. Pega bugs que travam ou se comportam errado em runtime.',
+      inputSchema: z.object({
+        severity: z.enum(['all', 'error', 'warning']).default('all').describe('Filtra por severity'),
+        limit: z.number().int().positive().default(200).describe('Máximo de issues retornadas'),
+      }).shape,
+    },
+    async (args) =>
+      mcpReturn(async () => {
+        const { checkEventReferences } = await import('../../core/event-references.js');
+        const result = await checkEventReferences(config);
+        let items = result.issues;
+        if (args.severity !== 'all') items = items.filter((i) => i.severity === args.severity);
+        return {
+          totalCommands: result.totalCommands,
+          totalIssues: result.totalIssues,
+          errorCount: result.errorCount,
+          warningCount: result.warningCount,
+          byRule: result.byRule,
+          issues: items.slice(0, args.limit),
+          truncated: items.length > args.limit ? items.length - args.limit : 0,
+        };
+      }),
+  );
+
+  /* -------------------------- text_replace_all ----------------------- */
+  server.registerTool(
+    'text_replace_all',
+    {
+      description:
+        'Busca e substitui texto em TODOS os diálogos do projeto (Show Text 401 + Scroll Text ' +
+        '405) — mapas, common events e battle events. Útil pra renomear personagem em massa, ' +
+        'corrigir typo recorrente. Substring literal (não regex). dryRun=true (padrão) só ' +
+        'mostra as ocorrências SEM mudar nada — RODE PRIMEIRO assim pra revisar. dryRun=false ' +
+        'aplica (cria snapshot antes). Confirme com o usuário antes de aplicar.',
+      inputSchema: z.object({
+        find: z.string().min(1).describe('Texto a procurar'),
+        replace: z.string().describe('Texto de substituição (pode ser vazio pra remover)'),
+        caseSensitive: z.boolean().default(true).describe('Diferencia maiúsculas/minúsculas'),
+        dryRun: z.boolean().default(true).describe('true = só preview; false = aplica de verdade'),
+        limit: z.number().int().positive().default(500).describe('Máximo de ocorrências detalhadas'),
+      }).shape,
+    },
+    async (args) =>
+      mcpReturn(async () => {
+        const { textReplaceAll } = await import('../../core/text-replace.js');
+        return textReplaceAll(config, {
+          find: args.find,
+          replace: args.replace,
+          caseSensitive: args.caseSensitive,
+          dryRun: args.dryRun,
+          limit: args.limit,
+        });
+      }),
+  );
 }
 
 function registerChangePartyMemberTemplate(server: McpServer, config: Config): void {
@@ -631,6 +728,61 @@ function registerChangePartyMemberTemplate(server: McpServer, config: Config): v
 }
 
 /* ========================== helpers ========================== */
+
+function registerShopTemplate(server: McpServer, config: Config): void {
+  server.registerTool(
+    'event_template_shop',
+    {
+      description:
+        'Adiciona Shop Processing (302 + 605) abrindo uma loja. goods = lista de itens à venda. ' +
+        'kind: "item"|"weapon"|"armor". price omitido ou 0 = usa o preço padrão do item. ' +
+        'purchaseOnly=true impede o jogador de vender.',
+      inputSchema: z.object({
+        mapId: z.number().int().positive(),
+        eventId: z.number().int().positive(),
+        pageIndex: z.number().int().nonnegative().default(0),
+        goods: z
+          .array(
+            z.object({
+              kind: z.enum(['item', 'weapon', 'armor']),
+              dataId: z.number().int().positive(),
+              price: z.number().int().nonnegative().default(0).describe('0 = preço padrão do item'),
+            }),
+          )
+          .min(1)
+          .describe('Itens à venda'),
+        purchaseOnly: z.boolean().default(false).describe('true impede venda'),
+        indent: z.number().int().nonnegative().default(0),
+      }).shape,
+    },
+    async (args) =>
+      mcpReturn(async () => {
+        const kindMap: Record<string, number> = { item: 0, weapon: 1, armor: 2 };
+        await mutateMap(config, args.mapId, (events) => {
+          const page = getPage(events, args);
+          args.goods.forEach((g, idx) => {
+            const goodType = kindMap[g.kind]!;
+            const priceType = g.price && g.price > 0 ? 1 : 0;
+            // Primeiro item = 302 (com purchaseOnly no fim); adicionais = 605
+            if (idx === 0) {
+              insertCommand(page.list, {
+                code: 302,
+                indent: args.indent,
+                parameters: [goodType, g.dataId, priceType, g.price ?? 0, args.purchaseOnly],
+              });
+            } else {
+              insertCommand(page.list, {
+                code: 605,
+                indent: args.indent,
+                parameters: [goodType, g.dataId, priceType, g.price ?? 0],
+              });
+            }
+          });
+        });
+        return { mapId: args.mapId, eventId: args.eventId, goodsCount: args.goods.length };
+      }),
+  );
+}
 
 function getPage(
   events: (MapEvent | null)[],

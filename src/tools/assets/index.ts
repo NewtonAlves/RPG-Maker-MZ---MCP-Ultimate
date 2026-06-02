@@ -254,4 +254,39 @@ export function registerAssetTools(server: McpServer, config: Config): void {
         audio: AUDIO_SPECS,
       })),
   );
+
+  /* -------------------- asset_check_missing_references ------------------------- */
+  server.registerTool(
+    'asset_check_missing_references',
+    {
+      description:
+        'Detecta assets REFERENCIADOS no banco/mapas/eventos que NÃO existem no disco ' +
+        '(direção inversa de mz_clean_unused_assets). Pega bugs comuns de shipping: sprite ' +
+        'em branco, áudio mudo, crash de animação faltando. Distingue "missing" (arquivo ' +
+        'inexistente) de "case_mismatch" (existe com case diferente — funciona no Windows mas ' +
+        'QUEBRA em export web/Linux). Animações checadas em effects/*.efkefc. Só lê, não modifica.',
+      inputSchema: z.object({
+        severity: z.enum(['all', 'missing', 'case_mismatch']).default('all').describe('Filtra por severity'),
+        limit: z.number().int().positive().default(200).describe('Máximo de itens retornados'),
+      }).shape,
+    },
+    async (args) =>
+      mcpReturn(async () => {
+        const { computeMissingReferences } = await import('../../core/asset-scanner.js');
+        const result = await computeMissingReferences(config);
+        let items = result.missing;
+        if (args.severity !== 'all') items = items.filter((m) => m.severity === args.severity);
+        const missingCount = result.missing.filter((m) => m.severity === 'missing').length;
+        const caseMismatchCount = result.missing.filter((m) => m.severity === 'case_mismatch').length;
+        return {
+          totalReferenced: result.totalReferenced,
+          totalProblems: result.missing.length,
+          missingCount,
+          caseMismatchCount,
+          byCategory: result.byCategory,
+          items: items.slice(0, args.limit),
+          truncated: items.length > args.limit ? items.length - args.limit : 0,
+        };
+      }),
+  );
 }

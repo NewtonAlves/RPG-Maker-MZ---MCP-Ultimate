@@ -33,3 +33,8 @@ companion-src/dist/
 # Temp files
 *.tmp
 *.bak
+
+# Artefatos de ferramentas externas (não pertencem ao MCP)
+ruvector.db
+*.db
+debug/

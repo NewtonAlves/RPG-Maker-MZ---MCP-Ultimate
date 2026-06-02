@@ -87,6 +87,52 @@
     if (verbose) console.log('[MzMcpCompanion]', ...args);
   }
 
+  /* ====================== CAPTURA DE CONSOLE/ERROS ====================== */
+  /* Buffer circular de erros/warnings do jogo, pra o MCP ler via
+   * runtime_get_console_log. Pega crashes de plugin durante o Playtest sem
+   * precisar de screenshot. NÃO intercepta console.log normal (só error/warn)
+   * pra não encher de ruído. */
+  const CONSOLE_BUFFER_MAX = 200;
+  const consoleBuffer = [];
+  function pushConsole(level, args, extra) {
+    try {
+      const parts = Array.prototype.map.call(args || [], (a) => {
+        if (a instanceof Error) return (a.stack || a.message || String(a));
+        if (typeof a === 'object') { try { return JSON.stringify(a); } catch (e) { return String(a); } }
+        return String(a);
+      });
+      const entry = { level, t: Date.now(), message: parts.join(' ') };
+      if (extra) Object.assign(entry, extra);
+      consoleBuffer.push(entry);
+      if (consoleBuffer.length > CONSOLE_BUFFER_MAX) {
+        consoleBuffer.splice(0, consoleBuffer.length - CONSOLE_BUFFER_MAX);
+      }
+    } catch (e) { /* nunca deixar a captura quebrar o jogo */ }
+  }
+
+  // Wrap console.error / console.warn (preserva comportamento original)
+  try {
+    const _err = console.error.bind(console);
+    console.error = function () { pushConsole('error', arguments); return _err.apply(console, arguments); };
+    const _warn = console.warn.bind(console);
+    console.warn = function () { pushConsole('warn', arguments); return _warn.apply(console, arguments); };
+  } catch (e) { /* ambiente sem console mutável */ }
+
+  // window.onerror — pega exceptions não-tratadas (crashes de plugin)
+  try {
+    if (typeof window !== 'undefined') {
+      const _onerror = window.onerror;
+      window.onerror = function (message, source, lineno, colno, error) {
+        pushConsole('uncaught', [error || message], { source, lineno, colno });
+        if (typeof _onerror === 'function') return _onerror.apply(this, arguments);
+        return false;
+      };
+      window.addEventListener('unhandledrejection', function (ev) {
+        pushConsole('unhandledrejection', [ev && ev.reason ? ev.reason : 'unknown']);
+      });
+    }
+  } catch (e) { /* sem window */ }
+
   function connect() {
     if (ws) return;
     // Re-lê o port file a cada tentativa (a porta pode mudar se o MCP for reiniciado)
@@ -181,6 +227,18 @@
 
   const HANDLERS = {
     ping: () => ({ pong: true, t: Date.now() }),
+
+    getConsoleLog: (p) => {
+      // Retorna o buffer de erros/warnings capturados. level filtra; clear esvazia depois.
+      const level = p && p.level;
+      const limit = (p && p.limit) || 100;
+      let entries = consoleBuffer;
+      if (level && level !== 'all') entries = entries.filter((e) => e.level === level);
+      const sliced = entries.slice(-limit);
+      const result = { count: sliced.length, total: consoleBuffer.length, entries: sliced };
+      if (p && p.clear) consoleBuffer.length = 0;
+      return result;
+    },
 
     getState: (params) => {
       const scope = (params && params.scope) || 'all';
@@ -392,6 +450,162 @@
         choices: $gameMessage._choices,
         choiceCallback: typeof $gameMessage._choiceCallback === 'function' ? 'set' : null,
       };
+    },
+
+    simulateBattle: (p) => {
+      // SIMULAÇÃO OFFLINE de batalha — não afeta o gameplay real.
+      //
+      // Clona party + troop, roda turnos com auto-attack (party ataca primeiro
+      // enemy alive, enemies atacam primeiro party member alive). Usa o engine
+      // REAL (Game_Action.makeDamageValue), então respeita plugins customizados
+      // (VisuStella, Yanfly, Kim_TacticalBattle override de damage, etc).
+      //
+      // Params:
+      //   troopId        : ID da troop a simular
+      //   partyActorIds  : array de actor IDs (default: party atual)
+      //   maxTurns       : limite (default 30)
+      //   strategy       : 'attack' (default) — só attack normal
+      try {
+        const troopId = p.troopId;
+        const maxTurns = p.maxTurns || 30;
+        const partyIds = (p.partyActorIds && p.partyActorIds.length)
+          ? p.partyActorIds
+          : ($gameParty ? $gameParty._actors.slice() : []);
+
+        if (!troopId || troopId <= 0) return { ok: false, error: 'troopId obrigatório' };
+        if (partyIds.length === 0) return { ok: false, error: 'party vazia' };
+        if (typeof Game_Troop === 'undefined') return { ok: false, error: 'Game_Troop indisponível' };
+        if (!$dataTroops || !$dataTroops[troopId]) return { ok: false, error: 'troop ' + troopId + ' não existe' };
+
+        // Clona a troop usando o engine real
+        const sandboxTroop = new Game_Troop();
+        sandboxTroop.setup(troopId);
+
+        // Clona party — pra cada actor, instancia novo Game_Actor com mesmo state
+        const sandboxParty = [];
+        for (const aid of partyIds) {
+          const orig = $gameActors.actor(aid);
+          if (!orig) continue;
+          const clone = new Game_Actor(aid);
+          // Copia HP/MP/TP/level atuais (já vem inicializado no construtor)
+          clone._hp = orig.hp;
+          clone._mp = orig.mp;
+          clone._tp = orig.tp;
+          clone._level = orig._level;
+          sandboxParty.push(clone);
+        }
+        if (sandboxParty.length === 0) return { ok: false, error: 'nenhum actor válido na party' };
+
+        const log = [];
+        const snapshot0 = sandboxParty.map((a) => ({ id: a.actorId(), name: a.name(), hp: a.hp, mp: a.mp }));
+        const enemiesInitial = sandboxTroop.members().map((e) => ({ id: e.enemyId(), name: e.name(), hp: e.hp }));
+        log.push({ turn: 0, kind: 'start', party: snapshot0, enemies: enemiesInitial });
+
+        const aliveParty = () => sandboxParty.filter((a) => a.hp > 0);
+        const aliveEnemies = () => sandboxTroop.aliveMembers();
+
+        const performAttack = (attacker, target) => {
+          const action = new Game_Action(attacker);
+          action.setAttack();
+          // Calcula damage via engine REAL (respeita plugins)
+          let damage = 0;
+          try {
+            damage = action.makeDamageValue(target, false);
+          } catch (err) {
+            damage = Math.max(1, attacker.atk * 2 - target.def);
+          }
+          const before = target.hp;
+          target.gainHp(-damage);
+          const after = target.hp;
+          return { damage, before, after, dead: after <= 0 };
+        };
+
+        let turn = 0;
+        let result = 'timeout';
+
+        while (turn < maxTurns) {
+          turn++;
+
+          // Party fase
+          for (const actor of aliveParty()) {
+            const enemies = aliveEnemies();
+            if (enemies.length === 0) break;
+            const target = enemies[0];
+            const r = performAttack(actor, target);
+            log.push({
+              turn,
+              kind: 'attack',
+              side: 'party',
+              actor: actor.name(),
+              target: target.name(),
+              targetId: target.enemyId(),
+              damage: r.damage,
+              targetHpBefore: r.before,
+              targetHpAfter: r.after,
+              killed: r.dead,
+            });
+          }
+
+          if (aliveEnemies().length === 0) {
+            result = 'party_won';
+            log.push({ turn, kind: 'end', result });
+            break;
+          }
+
+          // Troop fase
+          for (const enemy of aliveEnemies()) {
+            const targets = aliveParty();
+            if (targets.length === 0) break;
+            const target = targets[0];
+            const r = performAttack(enemy, target);
+            log.push({
+              turn,
+              kind: 'attack',
+              side: 'troop',
+              actor: enemy.name(),
+              actorId: enemy.enemyId(),
+              target: target.name(),
+              targetActorId: target.actorId(),
+              damage: r.damage,
+              targetHpBefore: r.before,
+              targetHpAfter: r.after,
+              killed: r.dead,
+            });
+          }
+
+          if (aliveParty().length === 0) {
+            result = 'troop_won';
+            log.push({ turn, kind: 'end', result });
+            break;
+          }
+        }
+
+        const partyFinal = sandboxParty.map((a) => ({
+          id: a.actorId(), name: a.name(),
+          hpStart: snapshot0.find((s) => s.id === a.actorId()).hp,
+          hpEnd: a.hp,
+          alive: a.hp > 0,
+        }));
+        const enemiesFinal = sandboxTroop.members().map((e) => ({
+          id: e.enemyId(), name: e.name(),
+          hpStart: enemiesInitial.find((s, idx) => sandboxTroop.members()[idx] === e)?.hp ?? 0,
+          hpEnd: e.hp,
+          alive: e.hp > 0,
+        }));
+
+        return {
+          ok: true,
+          result, // 'party_won' | 'troop_won' | 'timeout'
+          turns: turn,
+          partyFinal,
+          enemiesFinal,
+          totalDamageDealt: log.filter((l) => l.side === 'party').reduce((s, l) => s + l.damage, 0),
+          totalDamageTaken: log.filter((l) => l.side === 'troop').reduce((s, l) => s + l.damage, 0),
+          log,
+        };
+      } catch (err) {
+        return { ok: false, error: String(err && err.message ? err.message : err), stack: err && err.stack };
+      }
     },
 
     inspectPath: (p) => {

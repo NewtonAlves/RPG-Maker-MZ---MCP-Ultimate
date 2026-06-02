@@ -188,6 +188,104 @@ export async function listAssetFiles(
   }
 }
 
+/** Lista arquivos Effekseer (.efkefc) em effects/ — animações MZ. */
+export async function listEffectFiles(projectPath: string): Promise<string[]> {
+  const dir = path.join(projectPath, 'effects');
+  try {
+    const all = await fs.readdir(dir);
+    return all.filter((f) => f.endsWith('.efkefc'));
+  } catch {
+    return [];
+  }
+}
+
+export interface MissingReference {
+  /** Pasta lógica (ex: "img/characters", "audio/bgm", "effects"). */
+  folder: string;
+  /** Nome referenciado (sem extensão) que não foi encontrado exato. */
+  name: string;
+  kind: 'image' | 'audio' | 'effect';
+  /** "missing" = nenhum arquivo; "case_mismatch" = existe com case diferente (quebra em export web/Linux). */
+  severity: 'missing' | 'case_mismatch';
+  /** Se case_mismatch, o nome real do arquivo no disco. */
+  actualFile?: string;
+}
+
+/**
+ * Computa referências de asset que apontam pra arquivos AUSENTES no disco.
+ * É a direção inversa de computeUnusedAssets: pra cada nome referenciado no
+ * banco/mapas, verifica se o arquivo físico existe.
+ *
+ * Distingue:
+ *  - missing: nenhum arquivo com aquele nome → sprite em branco / áudio mudo / crash
+ *  - case_mismatch: existe com case diferente → funciona no Windows mas QUEBRA em
+ *    export web/Linux (filesystem case-sensitive)
+ *
+ * Animações são checadas em effects/*.efkefc (Effekseer), não img/animations.
+ */
+export async function computeMissingReferences(config: Config): Promise<{
+  totalReferenced: number;
+  missing: MissingReference[];
+  byCategory: Record<string, number>;
+}> {
+  const refs = await collectReferences(config);
+  const missing: MissingReference[] = [];
+  const byCategory: Record<string, number> = {};
+  let totalReferenced = 0;
+
+  // Helper: dado um Set de nomes referenciados + lista de arquivos físicos (com ext),
+  // produz missing/case_mismatch. stripExt remove a extensão pra comparar basename.
+  const diff = (
+    logicalFolder: string,
+    referenced: Set<string>,
+    physicalFiles: string[],
+    stripExt: (f: string) => string,
+    kind: MissingReference['kind'],
+  ) => {
+    totalReferenced += referenced.size;
+    // Mapa lowercase → nome real, pra detectar case mismatch
+    const exactSet = new Set<string>();
+    const lowerToReal = new Map<string, string>();
+    for (const f of physicalFiles) {
+      const base = stripExt(f);
+      exactSet.add(base);
+      lowerToReal.set(base.toLowerCase(), f);
+    }
+    for (const name of referenced) {
+      if (exactSet.has(name)) continue; // existe exato — ok
+      const lowerHit = lowerToReal.get(name.toLowerCase());
+      if (lowerHit) {
+        missing.push({ folder: logicalFolder, name, kind, severity: 'case_mismatch', actualFile: lowerHit });
+        byCategory[logicalFolder] = (byCategory[logicalFolder] ?? 0) + 1;
+      } else {
+        missing.push({ folder: logicalFolder, name, kind, severity: 'missing' });
+        byCategory[logicalFolder] = (byCategory[logicalFolder] ?? 0) + 1;
+      }
+    }
+  };
+
+  for (const folder of IMAGE_FOLDERS) {
+    const referenced = refs.imagesByFolder[folder] ?? new Set();
+    if (referenced.size === 0) continue;
+    if (folder === 'animations') {
+      // Animações MZ = Effekseer em effects/*.efkefc
+      const effects = await listEffectFiles(config.project.path);
+      diff('effects', referenced, effects, (f) => f.replace(/\.efkefc$/i, ''), 'effect');
+    } else {
+      const files = await listAssetFiles(config.project.path, folder, 'image');
+      diff(`img/${folder}`, referenced, files, (f) => f.replace(/\.png$/i, ''), 'image');
+    }
+  }
+  for (const folder of AUDIO_FOLDERS) {
+    const referenced = refs.audioByFolder[folder] ?? new Set();
+    if (referenced.size === 0) continue;
+    const files = await listAssetFiles(config.project.path, folder, 'audio');
+    diff(`audio/${folder}`, referenced, files, (f) => f.replace(/\.(ogg|m4a)$/i, ''), 'audio');
+  }
+
+  return { totalReferenced, missing, byCategory };
+}
+
 /** Computa lista de assets não-referenciados. */
 export async function computeUnusedAssets(config: Config): Promise<{
   unused: { folder: string; file: string; kind: 'image' | 'audio' }[];

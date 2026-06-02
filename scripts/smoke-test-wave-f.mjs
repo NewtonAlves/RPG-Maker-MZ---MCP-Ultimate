@@ -1,10 +1,9 @@
-// Smoke test Onda F: multi-port, map_render, dashboard, runtime structured queries, integrity checker.
+// Smoke test Onda F: multi-port, map_render, runtime structured queries, integrity checker.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import http from 'node:http';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(__dirname, '..');
@@ -32,18 +31,17 @@ try {
   await copyDir(tilesetSrc, path.join(tempA, 'img', 'tilesets'));
 } catch {}
 
-const cfgBase = (port, dashPort) => ({
+const cfgBase = (port) => ({
   project: { path: 'auto', autoBackup: true, backupRetention: 20, backupDir: '.mz-mcp/backups' },
   editor: { onLock: 'warn' },
   mz: { installPath: 'auto', corescriptVersion: 'v1.6.0' },
   runtime: { enableEvalJs: false, companionPort: port, tokenFile: '.mz-mcp/companion.token' },
   plugins: { defaultNamingConvention: 'snake', knownBases: {} },
   logging: { level: 'warn' },
-  dashboard: { enabled: true, port: dashPort },
 });
 
-await fs.writeFile(path.join(tempA, 'mz-mcp.config.json'), JSON.stringify(cfgBase(39872, 39873), null, 2));
-await fs.writeFile(path.join(tempB, 'mz-mcp.config.json'), JSON.stringify(cfgBase(39872, 39873), null, 2));
+await fs.writeFile(path.join(tempA, 'mz-mcp.config.json'), JSON.stringify(cfgBase(39872), null, 2));
+await fs.writeFile(path.join(tempB, 'mz-mcp.config.json'), JSON.stringify(cfgBase(39872), null, 2));
 
 // Função pra startar servidor MCP por stdio
 function startServer(projectPath, label) {
@@ -82,19 +80,6 @@ function startServer(projectPath, label) {
   return { proc, rpc, notify, call, getStderr };
 }
 
-// Função pra GET HTTP simples
-function httpGet(port, urlPath) {
-  return new Promise((resolve, reject) => {
-    const req = http.get({ host: '127.0.0.1', port, path: urlPath, timeout: 5000 }, (res) => {
-      let body = '';
-      res.on('data', (c) => { body += c; });
-      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { req.destroy(); reject(new Error('http timeout')); });
-  });
-}
-
 async function readPortFile(projectPath, name) {
   try {
     return (await fs.readFile(path.join(projectPath, '.mz-mcp', name), 'utf-8')).trim();
@@ -110,21 +95,18 @@ async function main() {
   // Espera arquivos de porta serem escritos
   await new Promise(r => setTimeout(r, 600));
   const portA = await readPortFile(tempA, 'companion.port');
-  const dashA = await readPortFile(tempA, 'dashboard.port');
-  console.log(`[smoke] Server A — companion: ${portA}, dashboard: ${dashA}`);
+  console.log(`[smoke] Server A — companion: ${portA}`);
 
   serverB = startServer(tempB, 'B');
   await serverB.rpc('initialize', { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'wF-B', version: '0' } });
   serverB.notify('notifications/initialized', {});
   await new Promise(r => setTimeout(r, 600));
   const portB = await readPortFile(tempB, 'companion.port');
-  const dashB = await readPortFile(tempB, 'dashboard.port');
-  console.log(`[smoke] Server B — companion: ${portB}, dashboard: ${dashB}`);
+  console.log(`[smoke] Server B — companion: ${portB}`);
 
   if (!portA || !portB) throw new Error(`port files missing: A=${portA} B=${portB}`);
   if (portA === portB) throw new Error(`servidores B deveria ter outra porta companion, ambos em ${portA}`);
-  if (dashA && dashB && dashA === dashB) throw new Error(`servidores deveriam ter dashboard ports distintas, ambos em ${dashA}`);
-  console.log(`[smoke] multi-port OK: companion A=${portA} B=${portB}, dashboard A=${dashA} B=${dashB}`);
+  console.log(`[smoke] multi-port OK: companion A=${portA} B=${portB}`);
 
   // Mata o B pra liberar a porta secundária e simplificar testes restantes
   serverB.proc.kill();
@@ -143,17 +125,6 @@ async function main() {
   if (!renderContent.data) throw new Error('map_render sem data');
   const sizeBytes = Buffer.from(renderContent.data, 'base64').length;
   console.log(`[smoke] map_render OK: ${renderContent.mimeType}, ${sizeBytes} bytes (base64)`);
-
-  console.log('\n--- F.3 DASHBOARD HTTP ---');
-  const dashPortNum = parseInt(dashA, 10);
-  const statusResp = await httpGet(dashPortNum, '/api/status');
-  if (statusResp.status !== 200) throw new Error(`/api/status status=${statusResp.status}`);
-  const status = JSON.parse(statusResp.body);
-  console.log(`[smoke] dashboard /api/status OK: mcpPort=${status.mcpPort}, companionPort=${status.companionPort}, projectPath=${path.basename(status.projectPath)}`);
-  const indexResp = await httpGet(dashPortNum, '/');
-  if (indexResp.status !== 200) throw new Error(`GET / status=${indexResp.status}`);
-  if (!indexResp.body.includes('RPG Maker MZ')) throw new Error('index.html não tem branding esperado');
-  console.log(`[smoke] dashboard / OK: ${indexResp.body.length} bytes`);
 
   console.log('\n--- F.4 RUNTIME STRUCTURED QUERIES (smoke: tools registradas + erro consistente sem companion) ---');
   const runtimeTools = ['runtime_get_scene_state', 'runtime_get_window_state', 'runtime_get_battle_state', 'runtime_get_message_state', 'runtime_inspect'];

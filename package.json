@@ -13,20 +13,18 @@
   "files": [
     "dist",
     "companion-src",
-    "templates",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc && node scripts/copy-dashboard-public.mjs",
-    "build:companion": "node scripts/build-companion.js",
+    "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src --ext .ts",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build && npm run build:companion"
+    "prepublishOnly": "npm run build"
   },
   "engines": {
     "node": ">=18.0.0"

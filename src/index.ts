@@ -15,8 +15,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { loadConfig } from './config.js';
 import { logger } from './utils/logger.js';
 import { registerAllTools } from './tools/index.js';
-import { DashboardServer, instrumentServer, setDashboardInstance } from './dashboard/server.js';
-import { getBridge } from './runtime/bridge.js';
 
 const SERVER_NAME = 'rpg-maker-mz-mcp';
 const SERVER_VERSION = '1.0.0';
@@ -36,20 +34,8 @@ async function main(): Promise<void> {
     version: SERVER_VERSION,
   });
 
-  // Instrumenta o server pra capturar tool calls e propagar pro dashboard
-  instrumentServer(server);
-
   // Registra todas as tools (delega pra src/tools/index.ts)
   await registerAllTools(server, config);
-
-  // Inicia dashboard (HTTP+WS) se habilitado
-  if (config.dashboard.enabled) {
-    const dashboard = new DashboardServer(config, getBridge(config));
-    setDashboardInstance(dashboard);
-    await dashboard.start(config.dashboard.port).catch((err) => {
-      logger.warn(`Dashboard falhou ao iniciar: ${(err as Error).message}`);
-    });
-  }
 
   // Conecta via stdio (modo padrão de transporte pra MCP)
   const transport = new StdioServerTransport();

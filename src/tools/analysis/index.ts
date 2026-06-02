@@ -14,6 +14,7 @@ import { clearAllCaches, withCache } from '../../core/analysis/cache.js';
 import { analyzeNpcDialogue } from '../../core/analysis/npc-dialogue.js';
 import { analyzeSwitchVariableGraph } from '../../core/analysis/switch-variable-graph.js';
 import { analyzeItemEconomy } from '../../core/analysis/item-economy.js';
+import { analyzeMapFlow } from '../../core/analysis/map-flow.js';
 import { analyzeSkillDistribution } from '../../core/analysis/skill-distribution.js';
 import {
   analyzeEnemyAppearances,
@@ -156,6 +157,72 @@ export function registerAnalysisTools(server: McpServer, config: Config): void {
           args.force,
         );
         return { ...result, _cache: { fromCache, cachedAt } };
+      }),
+  );
+
+  server.registerTool(
+    'analysis_map_flow',
+    {
+      description:
+        'Monta grafo dirigido do fluxo de mapas: pra cada mapa identifica transferências ' +
+        '(Transfer Player — code 201) com destino. Identifica mapas órfãos (sem entrada), ' +
+        'dead-end (sem saída) e unreachable (sem caminho a partir do starting map via BFS). ' +
+        'Útil pra entender estrutura narrativa, achar mapas inacessíveis e validar progressão. ' +
+        'Por padrão retorna view COMPACTA (sumário + mapas problemáticos + top hotspots). ' +
+        'Use verbose:true pra o grafo completo (edges + todos os nodes) — cuidado em projetos grandes.',
+      inputSchema: z.object({
+        force: z.boolean().default(false).describe('Ignora cache e re-executa'),
+        verbose: z
+          .boolean()
+          .default(false)
+          .describe('Retorna grafo completo (edges + todos nodes). Pode estourar limite de tokens em projetos grandes.'),
+        limit: z
+          .number()
+          .int()
+          .positive()
+          .default(40)
+          .describe('Máximo de mapas problemáticos/hotspots por lista no modo compacto'),
+      }).shape,
+    },
+    async (args) =>
+      mcpReturn(async () => {
+        const { result, fromCache, cachedAt } = await withCache(
+          config,
+          'map_flow',
+          () => analyzeMapFlow(config),
+          args.force,
+        );
+        if (args.verbose) {
+          return { ...result, _cache: { fromCache, cachedAt } };
+        }
+        // View compacta: sumário + só os mapas acionáveis + hotspots
+        const lim = args.limit;
+        const orphans = result.nodes.filter((n) => n.orphan).slice(0, lim);
+        const deadEnds = result.nodes.filter((n) => n.deadEnd).slice(0, lim);
+        const unreachable = result.nodes.filter((n) => n.unreachable).slice(0, lim);
+        const hotspots = result.nodes.slice(0, Math.min(10, lim)); // nodes já vêm ordenados por movimento
+        return {
+          startingMapId: result.startingMapId,
+          startingMapName: result.startingMapName,
+          totalMaps: result.totalMaps,
+          totalEdges: result.totalEdges,
+          dynamicEdges: result.dynamicEdges,
+          orphanCount: result.orphanCount,
+          deadEndCount: result.deadEndCount,
+          unreachableCount: result.unreachableCount,
+          orphanMaps: orphans.map((n) => ({ mapId: n.mapId, mapName: n.mapName })),
+          deadEndMaps: deadEnds.map((n) => ({ mapId: n.mapId, mapName: n.mapName })),
+          unreachableMaps: unreachable.map((n) => ({ mapId: n.mapId, mapName: n.mapName })),
+          hotspots: hotspots.map((n) => ({
+            mapId: n.mapId,
+            mapName: n.mapName,
+            incoming: n.incomingCount,
+            outgoing: n.outgoingCount,
+          })),
+          note:
+            'View compacta. Listas limitadas a `limit` itens. Use verbose:true pro grafo completo (edges+nodes).',
+          _cache: { fromCache, cachedAt },
+        };
       }),
   );
 

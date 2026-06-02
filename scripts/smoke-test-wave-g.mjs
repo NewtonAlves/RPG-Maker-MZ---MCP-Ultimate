@@ -19,7 +19,6 @@ const cfg = {
   runtime: { enableEvalJs: false, companionPort: 39920, tokenFile: '.mz-mcp/companion.token' },
   plugins: { defaultNamingConvention: 'snake', knownBases: {} },
   logging: { level: 'warn' },
-  dashboard: { enabled: false, port: 39921 },
 };
 await fs.writeFile(path.join(tempDir, 'mz-mcp.config.json'), JSON.stringify(cfg, null, 2));
 

@@ -16,7 +16,6 @@
 - [Instalação](#instalação)
 - [Configuração](#configuração)
 - [Modo de uso](#modo-de-uso)
-- [Dashboard ao vivo](#dashboard-ao-vivo)
 - [Memória do projeto](#memória-do-projeto)
 - [Análises semânticas](#análises-semânticas)
 - [Entendendo o catálogo de ferramentas](#entendendo-o-catálogo-de-ferramentas)
@@ -37,13 +36,12 @@
 
 ## Visão geral
 
-`rpg-maker-mz-mcp` é um servidor MCP em TypeScript que expõe **185 ferramentas** organizadas em 28 categorias, permitindo que um agente de IA crie, edite e inspecione qualquer aspecto de um projeto RPG Maker MZ por meio de comandos em linguagem natural.
+`rpg-maker-mz-mcp` é um servidor MCP em TypeScript que expõe **193 ferramentas** organizadas em 28 categorias, permitindo que um agente de IA crie, edite e inspecione qualquer aspecto de um projeto RPG Maker MZ por meio de comandos em linguagem natural.
 
 A arquitetura é **híbrida**:
 
 - **Modo edição (jogo fechado):** o servidor lê e escreve diretamente os arquivos JSON do projeto (`data/`), os plugins JavaScript (`js/plugins/`) e os assets (`img/`, `audio/`), com garantias de atomicidade, backup automático e detecção de conflito com o editor MZ aberto.
 - **Modo runtime (jogo rodando):** um plugin companion (`MzMcpCompanion.js`) instalado no projeto abre uma conexão WebSocket local, permitindo que o agente consulte e modifique o estado do jogo enquanto ele está em execução (HP, switches, variáveis, posição do jogador, cena ativa, janelas visíveis, batalha em andamento etc.).
-- **Modo dashboard:** um servidor HTTP+WebSocket local serve uma UI no navegador (`http://127.0.0.1:39873`) que mostra ao vivo cada chamada de ferramenta, estado do jogo, preview do mapa atual, screenshots e ações rápidas. Útil pra acompanhar o que o agente está fazendo enquanto você trabalha em paralelo.
 
 ---
 
@@ -62,7 +60,7 @@ Algumas ferramentas dependem de programas externos que **não vêm incluídos** 
 
 | Programa externo | Tools que dependem | Sem ele |
 |---|---|---|
-| **rpgmpacker** ([github.com/erri120/rpgmpacker](https://github.com/erri120/rpgmpacker)) | `mz_build` | Apenas a build cross-platform é desabilitada. As outras 184 ferramentas funcionam normalmente. A tool retorna mensagem clara com link de download se você tentar usar. |
+| **rpgmpacker** ([github.com/erri120/rpgmpacker](https://github.com/erri120/rpgmpacker)) | `mz_build` | Apenas a build cross-platform é desabilitada. As outras 192 ferramentas funcionam normalmente. A tool retorna mensagem clara com link de download se você tentar usar. |
 
 **Importante:** Se você clonar este MCP do GitHub e instalar em outro computador, **não precisa instalar `rpgmpacker` automaticamente** — só quando quiser empacotar seu jogo para distribuição (Windows, Mac, Web, Android). Criação de mapas, personagens, plugins, edição de eventos, etc., funcionam **sem nenhuma dependência externa**.
 
@@ -83,7 +81,7 @@ npm run build
 
 ### Estrutura após build
 
-Após `npm run build`, a pasta `dist/` contém o servidor compilado. O ponto de entrada é `dist/index.js`. O comando `build` também copia os arquivos estáticos do dashboard (`src/dashboard/public/*`) para `dist/dashboard/public/`.
+Após `npm run build`, a pasta `dist/` contém o servidor compilado. O ponto de entrada é `dist/index.js`.
 
 ---
 
@@ -128,10 +126,6 @@ Crie `mz-mcp.config.json` na raiz do projeto MZ:
   },
   "logging": {
     "level": "info"
-  },
-  "dashboard": {
-    "enabled": true,
-    "port": 39873
   }
 }
 ```
@@ -180,48 +174,6 @@ Reinicie o cliente MCP após a configuração.
    - *"Transfere o jogador para o mapa 10, posição (5, 5)."*
    - *"Que cena está aberta? Tem alguma janela ativa?"* (queries estruturadas, sem `eval_js`)
    - *"Tire um screenshot."* (a imagem chega como conteúdo nativo, sem ser texto base64)
-
-### Fluxo dashboard
-
-Abra `http://127.0.0.1:39873` no navegador. A página atualiza ao vivo via WebSocket — você vê cada ferramenta sendo chamada, estado do jogo (HP/MP em barras, posição, gold), mapa atual renderizado, último screenshot e botões pra rodar backup ou verificação de integridade com um clique. Não interfere no agente.
-
----
-
-## Dashboard ao vivo
-
-O dashboard é um servidor HTTP+WebSocket local que **não substitui o agente** — ele é uma janela honesta pra observar o que o MCP está fazendo em tempo real. Sobe automaticamente em `http://127.0.0.1:39873` quando o MCP inicia (configurável).
-
-### Cards exibidos
-
-| Card | O que mostra |
-|---|---|
-| **Estado do jogo (ao vivo)** | Scene ativa, mapa atual, posição do jogador, líder com nível e barras de HP/MP, gold, evento rodando. Atualiza a cada 3s quando o companion está conectado. |
-| **Mapa atual** | Renderização visual do mapa onde o jogador está. Re-renderiza automaticamente quando o jogador troca de mapa. |
-| **Screenshot do jogo** | Botão "Tirar agora (live)" dispara captura via companion (PIXI extract com tamanho fixo da tela — evita estouro de memória mesmo com plugins que adicionam sprites com bounds grandes). |
-| **Métricas** | Total de tool calls na sessão, sucessos, erros, eventos push do jogo, duração média. |
-| **Atividade ao vivo** | Log de cada ferramenta executada, com label em PT-BR + identificador técnico + duração + args. Filtrável e limpável. |
-| **Eventos do jogo (push)** | Eventos disparados pelo companion: `mapChanged`, `battleStarted`, `battleEnded`, `levelUp`, `switchChanged`, `variableChanged`, `goldChanged`, `itemChanged`, `partyMemberAdded`, `partyMemberRemoved`, `commonEventStarted` (11 tipos). |
-| **Ações rápidas** | Botões pra criar backup snapshot e verificar integridade do banco com 1 clique. Resultado aparece embaixo. |
-| **Conexão & configuração** | Portas, estado do companion, status real do editor MZ (aberto/fechado detectado por processo), política configurada quando editor aberto, auto-backup, clientes conectados ao dashboard. |
-
-### Endpoints HTTP expostos
-
-| Endpoint | Método | Retorno |
-|---|---|---|
-| `/` | GET | UI estática (HTML/CSS/JS) |
-| `/ws` | WS | Eventos ao vivo (`tool_call_start/end`, `push_event`, `companion_connected/disconnected`) |
-| `/api/status` | GET | JSON com portas, companion, project path, status do editor |
-| `/api/screenshot` | GET | Último screenshot cacheado (PNG) |
-| `/api/screenshot/capture` | POST | Dispara captura LIVE via companion, cacheia, retorna PNG |
-| `/api/map_render/:id` | GET | Renderiza o mapa por ID e retorna PNG |
-| `/api/runtime/snapshot` | GET | Snapshot consolidado do estado do jogo |
-| `/api/integrity_check` | GET | Roda checker de referências cruzadas |
-| `/api/backup/create` | POST | Cria snapshot de backup |
-| `/api/events/recent` | GET | Histórico recente de eventos do dashboard |
-
-### Múltiplas instâncias
-
-Várias sessões de cliente MCP rodando ao mesmo tempo (ex.: dois Claudes abertos) cada uma sobe seu próprio MCP. O dashboard tenta a porta 39873 e, se ocupada, vai testando 39874, 39875… até 39882. O companion lê a porta efetivamente escolhida do arquivo `.mz-mcp/companion.port` no projeto, então sempre conecta na bridge certa.
 
 ---
 
@@ -274,6 +226,7 @@ Ferramentas `analysis_*` rodam varreduras consolidadas do projeto e retornam **r
 | `analysis_skill_distribution` | Pra cada skill: quem aprende (classes via learnings + states com Add Skill), nível, custo, stat principal usado na fórmula. Identifica skills **inacessíveis**. |
 | `analysis_enemy_appearances` | Pra cada enemy: em quais troops, e quais delas são chamadas em map events ou random encounters. Identifica enemies **inalcançáveis**. |
 | `analysis_tileset_usage` | Pra cada tileset: que mapas usam, com dimensões. Identifica tilesets **não usados**. |
+| `analysis_map_flow` | Grafo dirigido do fluxo de mapas baseado em comandos Transfer Player (code 201). Identifica mapas **órfãos** (sem entrada), **dead-end** (sem saída) e **unreachable** (sem caminho a partir do starting map via BFS). Útil pra entender estrutura narrativa em projetos grandes. |
 | `analysis_clear_cache` | Limpa todos os caches (use se algo parecer desatualizado). |
 
 Cada chamada aceita `force: true` pra ignorar cache.
@@ -296,6 +249,12 @@ analysis_switch_variable_graph → switches.dead[]
 
 ```
 analysis_npc_dialogue_map → procura "fogo" ou "caverna" no preview por mapa
+```
+
+> *"Esse mapa novo está conectado ao resto do jogo? E os mapas legacy abandonados?"*
+
+```
+analysis_map_flow → nodes.unreachable + nodes.orphan + grafo de edges
 ```
 
 ---
@@ -400,13 +359,17 @@ CRUD genérico e helpers especializados para todos os tipos de dados do MZ:
 
 - Criação de mapas, edição de tiles por coordenada ou retângulo
 - Geração procedural (BSP dungeon, cellular automata cave, outdoor)
-- Eventos com 7 templates de comando: diálogo, escolhas, condicional, transferência, batalha, som, mudança de membro
+- Eventos com 8 templates de comando: diálogo, escolhas, condicional, transferência, batalha, som, mudança de membro, loja
 - Suporte completo aos ~117 event commands do MZ via tool genérica
 - **Renderização visual de mapas** (`map_render`) — compõe tiles + tileset images em PNG; retorna como conteúdo de imagem nativo pro agente "ver" o mapa sem abrir o editor
+- **Busca/substituição de texto** (`text_replace_all`) — renomeia/corrige em todos os diálogos do projeto de uma vez (dry-run + snapshot)
 
-### Verificação de integridade
+### Verificação de integridade (4 pilares)
 
-- `db_check_consistency` — varredura completa do banco detectando referências quebradas: actor com classId inexistente, skills apontando para states deletados, weapons com wtypeId/etypeId fora do range, enemy actions com skillId inválido, troop members com enemyId inexistente, classes com learnings de skills removidas, etc. Tipicamente roda 500+ checks em segundos e retorna lista priorizada por severidade.
+- `db_check_consistency` — **IDs cruzados no banco**: actor com classId inexistente, skills apontando para states deletados, weapons com wtypeId/etypeId fora do range, enemy actions com skillId inválido, troop members com enemyId inexistente, classes com learnings de skills removidas. 500+ checks em segundos, priorizados por severidade.
+- `asset_check_missing_references` — **arquivos de asset**: detecta imagens/áudios referenciados que não existem no disco (`missing`) ou que existem com case diferente (`case_mismatch` — quebra em export web/Linux). Animações via `effects/*.efkefc`.
+- `event_validate_structure` — **estrutura dos comandos**: command lists malformadas que travam o interpretador (sem terminador, indent inválido, blocos não fechados). Usa só invariantes provadas do MZ — zero falso positivo.
+- `event_check_references` — **conteúdo dos comandos**: transfer pra mapa inexistente, call de common event/troop inexistente, switch/variável fora do range, escape codes `\V[n]`/`\N[n]` apontando pra dado inválido.
 
 ### Plugins JavaScript
 
@@ -450,6 +413,7 @@ Quando o jogo está rodando com o `MzMcpCompanion.js` ativo:
   - `runtime_get_battle_state` — fase, turno, subject ativo, party/troop alive com HP/MP
   - `runtime_get_message_state` — texto, face, choices se mensagem ativa
   - `runtime_inspect` — leitura dot-walk segura de qualquer propriedade (`$gameParty._gold`, `$gameActors._data[1]._level`)
+  - `runtime_simulate_battle` — simula batalha COMPLETA offline (clona party + troop, roda turnos com auto-attack, usa `Game_Action.makeDamageValue` do engine REAL). Respeita plugins customizados (VisuStella, Yanfly, sistemas custom). Retorna log + winner + dano total. Não afeta gameplay real.
 - **Ações:** set switch/variable, HP/MP de actor, transferência, força batalha, common event, hot reload
 - **Screenshot:** captura via PIXI extract com tamanho fixo (816×624), evitando estouro de memória com plugins que adicionam sprites com bounds grandes. Retorna como conteúdo de imagem nativo (Claude vê visualmente).
 - **Eventos push (11 tipos):** o companion notifica mudanças — mapChanged, battleStarted, battleEnded, levelUp, switchChanged, variableChanged, goldChanged, itemChanged, partyMemberAdded, partyMemberRemoved, commonEventStarted
@@ -514,16 +478,15 @@ Resultado: `runtime_screenshot` — Claude recebe a imagem nativamente e pode de
 ## Arquitetura
 
 ```
-   Cliente MCP                          Navegador (opcional)
-            |                                  |
-            | protocolo MCP (stdio)            | HTTP + WebSocket
-            v                                  v
+   Cliente MCP
+            |
+            | protocolo MCP (stdio)
+            v
        rpg-maker-mz-mcp (TypeScript)
             |
-            | Tools (185, 28 categorias)
+            | Tools (193, 28 categorias)
             | Schemas Zod
             | SafeWriter + auto-backup + versionId bump
-            | dashboardEmitter (events de tool calls + push events)
             |
             +-- R/W arquivos -->  Projeto RPG Maker MZ
             |                     (data/, js/, img/, audio/)
@@ -533,8 +496,6 @@ Resultado: `runtime_screenshot` — Claude recebe a imagem nativamente e pode de
 ```
 
 Toda escrita é atômica (`.tmp` + rename) e cria backup rotativo. O `versionId` em `data/System.json` é incrementado a cada gravação, forçando o editor MZ a recarregar automaticamente se estiver aberto.
-
-A `instrumentServer` envelopa `registerTool` pra publicar cada chamada de ferramenta no `dashboardEmitter`, que o `DashboardServer` re-emite via WebSocket pros clientes do navegador conectados. O `CompanionBridge` propaga os push events recebidos do companion pelo mesmo emitter.
 
 ---
 
@@ -547,7 +508,6 @@ A `instrumentServer` envelopa `registerTool` pra publicar cada chamada de ferram
 - **Note field opaco**: o campo `note` (usado por plugins de terceiros) é preservado byte-por-byte.
 - **Validação Zod**: toda escrita valida o payload contra schema antes de tocar o disco.
 - **Companion local-only**: a bridge WebSocket aceita conexões apenas em `127.0.0.1` e requer token de autenticação compartilhado (gerado uma vez e salvo em `.mz-mcp/companion.token`).
-- **Dashboard local-only**: o servidor HTTP+WS bind apenas em `127.0.0.1`, sem exposição externa.
 - **Inspect sem eval**: `runtime_inspect` faz dot-walk seguro em path tipo `$gameParty._gold` sem executar código arbitrário (rejeita parênteses, operadores, etc.).
 
 ---
@@ -559,9 +519,8 @@ Você pode rodar várias sessões de cliente MCP em paralelo (ex.: dois Claudes 
 | Componente | Porta padrão | Range de fallback |
 |---|---|---|
 | Companion bridge (WebSocket) | 39872 | 39872-39881 (tenta a próxima livre) |
-| Dashboard (HTTP + WS) | 39873 | 39873-39882 (tenta a próxima livre) |
 
-A porta efetivamente escolhida é escrita em `<project>/.mz-mcp/companion.port` e `<project>/.mz-mcp/dashboard.port`. O `MzMcpCompanion.js` lê o arquivo `companion.port` no boot do Playtest, então sempre conecta na bridge correta da instância MCP que escreveu por último (geralmente a instância em foco).
+A porta efetivamente escolhida é escrita em `<project>/.mz-mcp/companion.port`. O `MzMcpCompanion.js` lê esse arquivo no boot do Playtest, então sempre conecta na bridge correta da instância MCP que escreveu por último (geralmente a instância em foco).
 
 ---
 
@@ -592,9 +551,13 @@ node scripts/smoke-test-wave-a.mjs       # Sprite/autotile/clean/save helpers
 node scripts/smoke-test-wave-b.mjs       # CSV nested, plugin parser, push events
 node scripts/smoke-test-wave-c.mjs       # Localization, init variants
 node scripts/smoke-test-wave-e.mjs       # Knowledge distillation
-node scripts/smoke-test-wave-f.mjs       # Multi-port, map_render, dashboard, runtime estruturado, integrity checker
+node scripts/smoke-test-wave-f.mjs       # Multi-port, map_render, runtime estruturado, integrity checker
 node scripts/smoke-test-wave-g.mjs       # Memória persistente + 6 análises semânticas
+node scripts/smoke-test-wave-j.mjs       # asset_check_missing_references + event_validate_structure (defeitos injetados)
+node scripts/smoke-test-wave-k.mjs       # event_check_references + text_replace_all + event_template_shop (defeitos injetados)
 ```
+
+Há também `scripts/smoke-test.mjs` (Fase 1 — núcleo) — 15 smoke tests no total. Vários deles **injetam defeitos de propósito** (asset fantasma, lista de comando corrompida, referência quebrada) e confirmam que as ferramentas de diagnóstico os detectam — provando que não dão falso negativo.
 
 ---
 
@@ -611,15 +574,11 @@ rpg-maker-mz-mcp/
 │   ├── data/                     # 7 catálogos JSON (codes, notetags, formulas)
 │   ├── tools/                    # 28 categorias de ferramentas MCP
 │   ├── runtime/                  # bridge WebSocket para companion
-│   ├── dashboard/                # HTTP+WS server + UI estática
-│   │   ├── server.ts
-│   │   ├── events.ts
-│   │   └── public/               # index.html, style.css, app.js
 │   └── utils/                    # logger, errors, help-link
 ├── companion-src/
 │   └── MzMcpCompanion.js         # plugin in-game (handlers + 11 push event hooks)
 ├── tests/unit/                   # 111 unit tests (vitest)
-├── scripts/                      # 13 smoke tests E2E + helpers de build
+├── scripts/                      # 15 smoke tests E2E + helpers de build
 ├── dist/                         # output compilado (após npm run build)
 ├── package.json
 ├── tsconfig.json
@@ -638,7 +597,6 @@ rpg-maker-mz-mcp/
 | Companion não conecta | Plugin não habilitado em `plugins.js` ou Playtest não iniciado | Verificar via `runtime_status`; reinstalar com `companion_install` |
 | Edição com editor aberto causa conflito | MZ editor cacheia dados em memória | Fechar o editor antes de operações grandes, ou usar `editor.onLock: "block"` |
 | Tile data parece incorreta | Tile IDs específicos do tileset configurado | Consultar `tileset_get_flags_decoded` e `event_command_describe` |
-| Dashboard fica em branco | Build não copiou os arquivos estáticos | Rodar `npm run build` novamente (o script copia `src/dashboard/public/*` pra `dist/`) |
 | Duas instâncias MCP em conflito | Companion não consegue decidir qual MCP conectar | Fechar uma das instâncias; a outra escreve `companion.port` correto |
 | Screenshot com erro `Invalid typed array length` | Plugin de terceiros adiciona sprites com bounds gigantes | Já mitigado: companion usa RenderTexture com tamanho fixo da tela. Atualizar o `MzMcpCompanion.js` se vier de versão antiga. |
 
@@ -648,7 +606,7 @@ rpg-maker-mz-mcp/
 
 Para ser transparente sobre o que o MCP **não** faz hoje:
 
-- **Autotile rendering em `map_render`**: tiles das categorias A1-A4 são renderizados com shape 0 (forma base), sem encoding completo de borda/canto (shapes 1-47). Mapas com muitas autotiles podem aparecer com tiles visualmente incompletos no preview do dashboard. Não afeta o jogo em si — só a renderização visual. O `procgen` usa autotile encoding correto na geração.
+- **Autotile rendering em `map_render`**: tiles das categorias A1-A4 são renderizados com shape 0 (forma base), sem encoding completo de borda/canto (shapes 1-47). Mapas com muitas autotiles podem aparecer com tiles visualmente incompletos no preview. Não afeta o jogo em si — só a renderização visual. O `procgen` usa autotile encoding correto na geração.
 - **Battle simulation**: não há simulador de combate fora do jogo. Pra testar balanceamento, é preciso entrar em batalha real via Playtest (o agente pode forçar via `runtime_force_battle`).
 - **Plugin sandbox**: validação de plugin cobre sintaxe via AST, mas não executa o plugin em ambiente isolado. Plugins ruins ainda precisam ser detectados ao reabrir o Playtest.
 - **MV (RPG Maker MV)**: o projeto é MZ-only. MV tem divergências menores que poderiam ser cobertas, mas não estão no escopo.
@@ -659,8 +617,16 @@ Para ser transparente sobre o que o MCP **não** faz hoje:
 
 ### Implementado (v1.0.0)
 
-- 185 ferramentas em 28 categorias
-- 111 unit tests + 13 smoke tests E2E
+- 193 ferramentas em 28 categorias
+- 111 unit tests + 15 smoke tests E2E
+- **asset_check_missing_references** — detecta assets referenciados que faltam no disco (missing + case_mismatch)
+- **event_validate_structure** — valida estrutura de command lists (terminador, indent, blocos fechados)
+- **event_check_references** — valida o que comandos apontam (transfer→mapa, call→common event, switch/var range, battle→troop, escape codes \V[n]/\N[n])
+- **text_replace_all** — busca/substitui texto em todos os diálogos do projeto (dry-run + snapshot)
+- **event_template_shop** — template de loja (Shop Processing 302/605)
+- **runtime_get_console_log** — captura erros/warnings do jogo durante Playtest (crashes de plugin)
+- **Map Flow Analysis** (`analysis_map_flow`) — grafo de fluxo de mapas com detecção de unreachable/orphan/dead-end
+- **Battle Simulation** (`runtime_simulate_battle`) — simulação offline no engine real, respeita plugins customizados
 - Sprite composition via jimp
 - Autotile encoding em procgen
 - Catálogos de event commands, effects, traits, tileset flags
@@ -670,7 +636,6 @@ Para ser transparente sobre o que o MCP **não** faz hoje:
 - Screenshot via PIXI RenderTexture (sem estouro de memória)
 - Map render visual (`map_render`) com conteúdo de imagem nativo
 - Database integrity checker (`db_check_consistency`)
-- Dashboard HTTP+WS com 8 cards live
 - Múltiplas instâncias simultâneas (multi-port)
 - CSV com campos aninhados
 - Save edit com helpers semânticos
@@ -705,6 +670,24 @@ Contribuições são bem-vindas. Antes de abrir um pull request:
 **Para:** RPG Maker MZ (KADOKAWA Corporation)
 
 Este projeto não é afiliado oficialmente à KADOKAWA. Os arquivos lidos da instalação do RPG Maker MZ (`corescript/`, `newdata/`, `samplemaps/`, `generator/`, `dlc/`, `help-en/`) pertencem ao usuário que possui licença válida do produto.
+
+### Bibliotecas de terceiros
+
+- `@modelcontextprotocol/sdk` (MIT)
+- `zod` (MIT)
+- `ws` (MIT)
+- `jimp` (MIT)
+- `lz-string` (WTFPL)
+- `acorn` (MIT)
+- `papaparse` (MIT)
+- `chokidar` (MIT)
+- `@comuns-rpgmaker/plugin-metadata` (referência para spec de metadata de plugins)
+
+### Inspirações
+
+- `devmagary/MCP-Maker` e `k4zuki0539/rpgmaker-mz-mcp` (MCPs anteriores que serviram de baseline arquitetural)
+- VisuStella MZ (convenção dominante do ecossistema de plugins)
+- `comuns-rpgmaker/plugin-metadata` (spec canônica de metadados de plugin)
 
 ---
 

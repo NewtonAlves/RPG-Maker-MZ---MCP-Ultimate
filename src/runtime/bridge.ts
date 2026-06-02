@@ -13,7 +13,6 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 import type { Config } from '../config.js';
-import { dashboardEmitter } from '../dashboard/events.js';
 import { logger } from '../utils/logger.js';
 import { mzError } from '../utils/errors.js';
 
@@ -215,12 +214,6 @@ export class CompanionBridge {
           };
           logger.info(`Companion autenticado: ${JSON.stringify(this.companionInfo)}`);
           ws.send(JSON.stringify({ jsonrpc: '2.0', method: 'helloAck', params: { ok: true } }));
-          // Notifica dashboard
-          dashboardEmitter.emit('companion_connected', {
-            type: 'companion_connected',
-            info: this.companionInfo,
-            timestamp: Date.now(),
-          });
         } else {
           logger.warn('Handshake falhou — token inválido ou método errado');
           ws.close();
@@ -258,13 +251,6 @@ export class CompanionBridge {
           else remaining.push(l);
         }
         this.eventListeners = remaining;
-        // Propaga pro dashboard
-        dashboardEmitter.emit('push_event', {
-          type: 'push_event',
-          name: ev.name,
-          data: ev.data,
-          timestamp: ev.t,
-        });
       }
     });
 
@@ -273,10 +259,6 @@ export class CompanionBridge {
       if (this.companion === ws) {
         this.companion = null;
         this.companionInfo = {};
-        dashboardEmitter.emit('companion_disconnected', {
-          type: 'companion_disconnected',
-          timestamp: Date.now(),
-        });
       }
     });
 

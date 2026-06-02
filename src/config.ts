@@ -47,10 +47,6 @@ const ConfigSchema = z.object({
     level: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
     file: z.string().optional(),
   }),
-  dashboard: z.object({
-    enabled: z.boolean().default(true),
-    port: z.number().int().nonnegative().default(39873),
-  }),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -82,10 +78,6 @@ type PartialConfigFile = {
   logging?: Partial<{
     level: 'debug' | 'info' | 'warn' | 'error';
     file: string;
-  }>;
-  dashboard?: Partial<{
-    enabled: boolean;
-    port: number;
   }>;
 };
 
@@ -164,10 +156,6 @@ export async function loadConfig(): Promise<Config> {
     logging: {
       level: fileConfig.logging?.level ?? 'info',
       file: fileConfig.logging?.file,
-    },
-    dashboard: {
-      enabled: fileConfig.dashboard?.enabled ?? true,
-      port: fileConfig.dashboard?.port ?? 39873,
     },
   };
 
